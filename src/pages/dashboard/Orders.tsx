@@ -123,7 +123,7 @@ export default function Orders() {
                       </TableCell>
                       <TableCell>{order.quantity?.toLocaleString() || 1}</TableCell>
                       <TableCell className="font-medium">
-                        ${Number(order.total_cost).toFixed(2)}
+                        ${Number(order.amount).toFixed(2)}
                       </TableCell>
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell className="text-muted-foreground">

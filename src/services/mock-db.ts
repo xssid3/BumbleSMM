@@ -636,6 +636,16 @@ class QueryBuilder {
             });
         }
 
+        if (this.selectQuery.includes('service:services')) {
+            result = result.map(item => {
+                if (item.service_id) {
+                    const services = JSON.parse(localStorage.getItem(this.db.storagePrefix + 'services') || '[]');
+                    item.service = services.find((s: any) => s.id === item.service_id);
+                }
+                return item;
+            });
+        }
+
         if (this.isSingle) {
             resolve({ data: result.length > 0 ? result[0] : null, error: null, status: 200, statusText: 'OK' });
         } else {

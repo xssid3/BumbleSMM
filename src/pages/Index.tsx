@@ -176,7 +176,11 @@ export default function Index() {
                   <div className="flex items-center justify-between pt-4 border-t border-white/5">
                     <div>
                       <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Start From</p>
-                      <p className="text-xl font-bold text-primary">${service.price_per_1000.toFixed(2)}</p>
+                      <p className="text-xl font-bold text-primary">
+                        {service.type === 'smm'
+                          ? `$${Number(service.price_per_1000 || 0).toFixed(2)}`
+                          : `$${Number(service.fixed_price || 0).toFixed(2)}`}
+                      </p>
                     </div>
                     <Button
                       onClick={() => handleBuyNow(service.id)}
