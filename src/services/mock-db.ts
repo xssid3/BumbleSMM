@@ -38,22 +38,21 @@ interface Order {
 
 // Seed data
 const INITIAL_CATEGORIES = [
-    { id: 1, name: 'Facebook', slug: 'facebook', icon: 'Facebook', sort_order: 1, is_active: true, created_at: new Date().toISOString() },
-    { id: 2, name: 'Instagram', slug: 'instagram', icon: 'Instagram', sort_order: 2, is_active: true, created_at: new Date().toISOString() },
-    { id: 3, name: 'YouTube', slug: 'youtube', icon: 'Youtube', sort_order: 3, is_active: true, created_at: new Date().toISOString() },
-    { id: 4, name: 'TikTok', slug: 'tiktok', icon: 'Video', sort_order: 4, is_active: true, created_at: new Date().toISOString() },
+    { id: 1, name: 'Instagram', slug: 'instagram', icon: 'Instagram', sort_order: 1, is_active: true, created_at: new Date().toISOString() },
+    { id: 2, name: 'YouTube', slug: 'youtube', icon: 'Youtube', sort_order: 2, is_active: true, created_at: new Date().toISOString() },
+    { id: 3, name: 'TikTok', slug: 'tiktok', icon: 'Video', sort_order: 3, is_active: true, created_at: new Date().toISOString() },
 ];
 
 const INITIAL_SERVICES = [
     {
         id: 1,
-        name: 'Facebook Page Likes (Real)',
+        name: 'Instagram Followers (Real)',
         type: 'smm',
         category_id: 1,
         price_per_1000: 5.00,
         min_quantity: 100,
         max_quantity: 10000,
-        description: 'High quality real page likes',
+        description: 'High quality real followers',
         is_active: true,
         input_schema: ['link', 'quantity'],
         created_at: new Date().toISOString()
@@ -84,7 +83,7 @@ const INITIAL_PROFILES = [
     },
     {
         id: 'admin-123',
-        email: 'contact.sayedjohon@gmail.com',
+        email: 'admin@example.com',
         role: 'admin',
         balance: 9999.99,
         is_active: true,
@@ -231,14 +230,7 @@ class MockDB {
 
     auth = {
         getSession: async () => {
-            let sessionStr = localStorage.getItem('mock_session');
-
-            // DEV MODE: Auto-login as admin if no session -> REMOVED FOR AUTH TESTING
-            // We want to force manual login to test the flow
-            if (!sessionStr) {
-                return { data: { session: null }, error: null };
-            }
-
+            const sessionStr = localStorage.getItem('mock_session');
             return { data: { session: sessionStr ? JSON.parse(sessionStr) : null }, error: null };
         },
         onAuthStateChange: (callback: (event: string, session: any) => void) => {
@@ -246,21 +238,11 @@ class MockDB {
             return { data: { subscription: { unsubscribe: () => { this.authListenerCallback = null; } } } };
         },
         signInWithPassword: async ({ email, password }: any) => {
-            // Updated Mock Login Logic
+            // Mock login
             const user = this.tables['profiles'].find((p: any) => p.email === email);
-
             if (!user) {
                 return { data: { user: null, session: null }, error: { message: 'Invalid login credentials' } };
             }
-
-            // Simple password check simulation
-            // For admin: strict check
-            if (email === 'contact.sayedjohon@gmail.com' && password !== 'Johon123') {
-                return { data: { user: null, session: null }, error: { message: 'Invalid login credentials' } };
-            }
-            // For others: we accept any password for now as we don't store hashes in mock, 
-            // OR we could store a 'password' field in profile for strictly local testing.
-            // Let's assume for non-admin users any password > 6 chars works if user exists.
 
             const session = {
                 access_token: 'mock-token-' + Date.now(),
@@ -275,25 +257,19 @@ class MockDB {
 
             return { data: { user: session.user, session }, error: null };
         },
-        signUp: async ({ email, password, options }: any) => {
-            // Check if user already exists
+        signUp: async ({ email, password }: any) => {
             const existing = this.tables['profiles'].find((p: any) => p.email === email);
             if (existing) {
                 return { data: { user: null, session: null }, error: { message: 'User already registered' } };
             }
-
-            // Create new User
             const newUser = {
                 id: 'user-' + Date.now(),
                 email,
                 role: 'user', // Default role
                 balance: 0,
                 is_active: true,
-                created_at: new Date().toISOString(),
-                // Store password if we wanted to be strict, but for now we skip
-                metadata: options?.data || {}
+                created_at: new Date().toISOString()
             };
-
             this.tables['profiles'].push(newUser);
             this.saveToStorage('profiles');
 
@@ -311,8 +287,6 @@ class MockDB {
                 access_token: 'mock-token-' + Date.now(),
                 user: { ...newUser }
             };
-
-            // Auto sign in after sign up
             localStorage.setItem('mock_session', JSON.stringify(session));
 
             // Notify listener
@@ -348,14 +322,8 @@ class MockDB {
             const updatedUser = { ...this.tables['profiles'][userIndex] };
 
             if (attributes.email) updatedUser.email = attributes.email;
-            // In a real app we'd hash password, but for mock we just accept it (or ignore since we don't store it visibly)
-            // If we were storing passwords in mock db, we'd update it here. 
-            // Since mock logic for login just checks email existence for 'admin'/'user' prefix or creates new, 
-            // explicit password storage isn't fully implemented in signInWithPassword.
-            // But let's support updating 'email' which effectively changes login identifier.
-
             if (attributes.data) {
-                // Merge metadata if we were supporting it
+                // Merge metadata if needed
             }
 
             this.tables['profiles'][userIndex] = updatedUser;
@@ -373,13 +341,11 @@ class MockDB {
         },
         admin: {
             createUser: async ({ email, password, email_confirm, user_metadata }: any) => {
-                // Check if user already exists
                 const existing = this.tables['profiles'].find((p: any) => p.email === email);
                 if (existing) {
                     return { data: { user: null }, error: { message: 'User already exists' } };
                 }
 
-                // Create new User
                 const newUser = {
                     id: 'user-' + Date.now(),
                     email,
@@ -393,7 +359,6 @@ class MockDB {
                 this.tables['profiles'].push(newUser);
                 this.saveToStorage('profiles');
 
-                // Create user role
                 const userRole = {
                     id: 'role-' + Date.now(),
                     user_id: newUser.id,
@@ -407,6 +372,59 @@ class MockDB {
             }
         }
     };
+
+    // RPC Simulation
+    async rpc(functionName: string, params: any): Promise<PostgrestSingleResponse<any>> {
+        if (functionName === 'refund_order') {
+            const { order_id } = params;
+            const orderIndex = this.tables['orders'].findIndex((o: any) => o.id === order_id);
+            if (orderIndex === -1) {
+                return { data: null, error: { message: 'Order not found', details: '', hint: '', code: '404' }, count: null, status: 404, statusText: 'Not Found' };
+            }
+
+            const order = this.tables['orders'][orderIndex];
+            if (order.status === 'cancelled') {
+                return { data: null, error: { message: 'Order already cancelled', details: '', hint: '', code: '400' }, count: null, status: 400, statusText: 'Bad Request' };
+            }
+
+            const userIndex = this.tables['profiles'].findIndex((p: any) => p.id === order.user_id);
+            if (userIndex === -1) {
+                return { data: null, error: { message: 'User not found', details: '', hint: '', code: '404' }, count: null, status: 404, statusText: 'Not Found' };
+            }
+
+            // Perform updates
+            // 1. Refund Balance
+            const refundAmount = Number(order.amount);
+            const currentBalance = Number(this.tables['profiles'][userIndex].balance) || 0;
+            this.tables['profiles'][userIndex].balance = currentBalance + refundAmount;
+            this.saveToStorage('profiles');
+
+            // 2. Cancel Order
+            this.tables['orders'][orderIndex].status = 'cancelled';
+            this.tables['orders'][orderIndex].updated_at = new Date().toISOString();
+            this.saveToStorage('orders');
+
+            // 3. Notify
+            const updatedUser = this.tables['profiles'][userIndex];
+            // Notify listener
+            if (this.authListenerCallback) {
+                const sessionStr = localStorage.getItem('mock_session');
+                if (sessionStr) {
+                    const session = JSON.parse(sessionStr);
+                    if (session.user.id === updatedUser.id) {
+                        const newSession = { ...session, user: updatedUser };
+                        localStorage.setItem('mock_session', JSON.stringify(newSession));
+                        this.authListenerCallback('USER_UPDATED', newSession);
+                    }
+                }
+            }
+            this.notifySubscribers('orders', 'UPDATE', order, this.tables['orders'][orderIndex]);
+
+            return { data: true, error: null, count: null, status: 200, statusText: 'OK' };
+        }
+
+        return { data: null, error: { message: 'Function not found', details: '', hint: '', code: '404' }, count: null, status: 404, statusText: 'Not Found' };
+    }
 }
 
 class QueryBuilder {
@@ -522,7 +540,6 @@ class QueryBuilder {
                 row.id = maxId + 1;
             }
             if (!row.created_at) row.created_at = new Date().toISOString();
-            if (row.is_active === undefined) row.is_active = true; // Default to active
 
             const newData = [...this.data, row];
             this.onUpdate(newData);
@@ -530,8 +547,6 @@ class QueryBuilder {
             // Notify subscribers
             this.db.notifySubscribers(this.tableName, 'INSERT', null, row);
 
-            // Handle select() after insert - if requested, return data. 
-            // In Mock, we always return the data for simplicity unless it causes issues.
             resolve({ data: row, error: null, count: null, status: 201, statusText: 'Created' });
             return;
         }
@@ -558,19 +573,13 @@ class QueryBuilder {
             if (updatedCount > 0) {
                 console.log(`[MockDB] Updated ${updatedCount} rows`);
                 this.onUpdate(newData);
-                // Notify for each updated row - strictly we should do this inside the map but this is a mock
                 updatedRows.forEach(row => {
-                    // Find old row for diff? Mock simplification: just send new
                     this.db.notifySubscribers(this.tableName, 'UPDATE', null, row);
                 });
             } else {
                 console.warn(`[MockDB] UPDATE executed but NO rows matched filters on ${this.tableName}`);
             }
 
-            // If .select() was called, Supabase returns the updated rows. 
-            // We can return 'updatedRows' as data if needed, or null.
-            // Standard update without select returns null data.
-            // But if we want to be safe for .select() calls:
             resolve({ data: this.selectQuery !== '*' ? updatedRows : null, error: null, count: updatedCount, status: 200, statusText: 'OK' });
             return;
         }
@@ -589,6 +598,8 @@ class QueryBuilder {
 
             if (deletedCount > 0) {
                 this.onUpdate(newData);
+                // Simple delete notification
+                this.db.notifySubscribers(this.tableName, 'DELETE', null, null);
             }
 
             resolve({ data: null, error: null, count: deletedCount, status: 204, statusText: 'No Content' });
@@ -634,3 +645,4 @@ class QueryBuilder {
 }
 
 export const mockDB = new MockDB();
+

@@ -10,7 +10,7 @@ export interface Order {
   service_id: number | null;
   link: string | null;
   quantity: number | null;
-  total_cost: number;
+  amount: number;
   status: 'pending' | 'processing' | 'completed' | 'canceled' | 'refunded';
   input_data: Json | null;
   start_count: number | null;
@@ -117,7 +117,7 @@ export function usePlaceOrder() {
           service_id: serviceId,
           link: link || null,
           quantity: quantity || 1,
-          total_cost: totalCost,
+          amount: totalCost,
           status: 'pending' as const,
           input_data: (inputData as Json) || null,
         })

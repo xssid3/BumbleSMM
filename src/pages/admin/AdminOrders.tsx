@@ -21,6 +21,16 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogCancel,
+    AlertDialogAction
+} from '@/components/ui/alert-dialog';
+import {
     Select,
     SelectContent,
     SelectItem,
@@ -115,6 +125,7 @@ export default function AdminOrders() {
     const [fulfillmentFiles, setFulfillmentFiles] = useState<{ name: string; url: string }[]>([]);
     const [selectedStatus, setSelectedStatus] = useState<string>('completed');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [confirmationAction, setConfirmationAction] = useState<{ type: 'refund' | 'cancel', orderId: number } | null>(null);
     const queryClient = useQueryClient();
 
     // Fetch all orders with user and service details
@@ -180,6 +191,22 @@ export default function AdminOrders() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
             toast.success('Order fulfilled successfully!');
+            setIsDialogOpen(false);
+            resetFulfillmentForm();
+        },
+        onError: (error: Error) => {
+            toast.error(error.message);
+        }
+    });
+
+    const refundOrderMutation = useMutation({
+        mutationFn: async (orderId: number) => {
+            const { error } = await supabase.rpc('refund_order', { order_id: orderId });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+            toast.success('Order refunded and cancelled successfully!');
             setIsDialogOpen(false);
             resetFulfillmentForm();
         },
@@ -307,6 +334,10 @@ export default function AdminOrders() {
                                             </TableCell>
                                             <TableCell>
                                                 <Dialog open={isDialogOpen && selectedOrder?.id === order.id} onOpenChange={(open) => {
+                                                    // Prevent parent from closing if child is open (basic check, can be refined)
+                                                    if (!open && confirmationAction) {
+                                                        return;
+                                                    }
                                                     setIsDialogOpen(open);
                                                     if (!open) resetFulfillmentForm();
                                                 }}>
@@ -440,18 +471,35 @@ export default function AdminOrders() {
                                                             </TabsContent>
                                                         </Tabs>
 
-                                                        {selectedOrder?.status !== 'completed' && (
-                                                            <Button
-                                                                className="w-full mt-4"
-                                                                variant="success"
-                                                                onClick={handleFulfillSubmit}
-                                                                disabled={fulfillOrderMutation.isPending}
-                                                            >
-                                                                {fulfillOrderMutation.isPending ? 'Processing...' :
-                                                                    selectedStatus === 'cancelled' ? 'Cancel Order' :
-                                                                        selectedStatus === 'processing' ? 'Mark as Processing' :
-                                                                            selectedStatus === 'completed' ? 'Complete Order & Send' : 'Update Order'}
-                                                            </Button>
+                                                        {selectedOrder?.status !== 'completed' && selectedOrder?.status !== 'cancelled' && (
+                                                            <div className="flex gap-3 mt-4">
+                                                                <Button
+                                                                    className="flex-1"
+                                                                    variant="success"
+                                                                    onClick={handleFulfillSubmit}
+                                                                    disabled={fulfillOrderMutation.isPending}
+                                                                >
+                                                                    {fulfillOrderMutation.isPending ? 'Processing...' : 'Complete Order'}
+                                                                </Button>
+
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className="flex-1 border-destructive text-destructive hover:bg-destructive/10"
+                                                                    onClick={() => setConfirmationAction({ type: 'cancel', orderId: selectedOrder.id })}
+                                                                    disabled={fulfillOrderMutation.isPending}
+                                                                >
+                                                                    Cancel (No Refund)
+                                                                </Button>
+
+                                                                <Button
+                                                                    variant="destructive"
+                                                                    className="flex-1"
+                                                                    onClick={() => setConfirmationAction({ type: 'refund', orderId: selectedOrder.id })}
+                                                                    disabled={refundOrderMutation.isPending}
+                                                                >
+                                                                    {refundOrderMutation.isPending ? 'Refunding...' : 'Refund & Cancel'}
+                                                                </Button>
+                                                            </div>
                                                         )}
                                                     </DialogContent>
                                                 </Dialog>
@@ -464,6 +512,43 @@ export default function AdminOrders() {
                     )}
                 </CardContent>
             </Card>
+
+            <AlertDialog open={!!confirmationAction} onOpenChange={(open) => !open && setConfirmationAction(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {confirmationAction?.type === 'refund' ? 'Refund & Cancel Order' : 'Cancel Order (No Refund)'}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmationAction?.type === 'refund'
+                                ? 'Are you sure you want to REFUND and CANCEL this order? The funds will be securely returned to the user\'s balance.'
+                                : 'Are you sure you want to cancel this order WITHOUT issuing a refund? This action cannot be undone.'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={confirmationAction?.type === 'refund' ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90"}
+                            onClick={() => {
+                                if (!confirmationAction) return;
+
+                                if (confirmationAction.type === 'refund') {
+                                    refundOrderMutation.mutate(confirmationAction.orderId);
+                                } else {
+                                    fulfillOrderMutation.mutate({
+                                        orderId: confirmationAction.orderId,
+                                        fulfillment: null,
+                                        status: 'cancelled'
+                                    });
+                                }
+                                setConfirmationAction(null);
+                            }}
+                        >
+                            {confirmationAction?.type === 'refund' ? 'Confirm Refund' : 'Confirm Cancellation'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
