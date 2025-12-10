@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,18 +7,37 @@ import { useServices } from '@/hooks/useServices';
 import { Shield, Zap, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { InstagramIcon, YoutubeIcon, TikTokIcon, FacebookIcon } from '@/components/icons/SocialIcons';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { AuthForm } from '@/components/AuthForm';
 
 export default function Index() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: services = [], isLoading } = useServices();
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [defaultIsLogin, setDefaultIsLogin] = useState(true);
 
   const handleBuyNow = (serviceId: number) => {
     if (user) {
       navigate(`/dashboard?serviceId=${serviceId}`);
     } else {
-      navigate(`/login?returnUrl=/dashboard?serviceId=${serviceId}`);
+      // Show login popup instead of navigating to /login
+      setDefaultIsLogin(true);
+      setIsAuthOpen(true);
+      // We could store the returnUrl to navigate after success in AuthForm props, 
+      // but for simplicity in this popup flow, we can just close it or let user navigate manually.
+      // Better UX: AuthForm onSuccess could handle it. 
+      // For now, let's just open the popup. User will login and stay on page or go to dashboard default.
+      // But typically "Buy Now" -> Login -> Dashboard with item.
+      // Let's modify AuthForm to support onSuccess logic better if needed, 
+      // or just let the default behavior (navigate to dashboard) happen.
+      // AuthForm default behavior navigates to /dashboard. That works for "Buy Now".
     }
+  };
+
+  const openAuth = (isLogin: boolean) => {
+    setDefaultIsLogin(isLogin);
+    setIsAuthOpen(true);
   };
 
   // Custom Minimal Icons
@@ -45,10 +65,10 @@ export default function Index() {
               </Button>
             ) : (
               <>
-                <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => navigate('/login')}>
+                <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => openAuth(true)}>
                   Login
                 </Button>
-                <Button variant="default" className="font-semibold text-black" onClick={() => navigate('/register')}>
+                <Button variant="default" className="font-semibold text-black" onClick={() => openAuth(false)}>
                   Get Started
                 </Button>
               </>
@@ -58,9 +78,8 @@ export default function Index() {
       </nav>
 
       {/* Hero Section */}
-      {/* Hero Section */}
       <div className="relative pt-32 pb-20 md:pt-48 md:pb-32 px-6 overflow-hidden">
-        {/* Subtle Background Effects */}
+        {/* ... existing hero content ... */}
         <div className="absolute inset-0 z-0 bg-grid-pattern opacity-50" />
         <div className="absolute inset-0 z-0 hero-gradient" />
 
@@ -187,6 +206,13 @@ export default function Index() {
           </p>
         </div>
       </footer>
+
+      {/* Auth Dialog */}
+      <Dialog open={isAuthOpen} onOpenChange={setIsAuthOpen}>
+        <DialogContent className="glass-panel-strong p-8 max-w-md border-primary/20">
+          <AuthForm defaultIsLogin={defaultIsLogin} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

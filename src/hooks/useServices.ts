@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { mockDB as supabase } from '@/services/mock-db';
 
 export interface Category {
   id: number;

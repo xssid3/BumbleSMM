@@ -84,7 +84,7 @@ const INITIAL_PROFILES = [
     },
     {
         id: 'admin-123',
-        email: 'admin@example.com',
+        email: 'contact.sayedjohon@gmail.com',
         role: 'admin',
         balance: 9999.99,
         is_active: true,
@@ -233,21 +233,10 @@ class MockDB {
         getSession: async () => {
             let sessionStr = localStorage.getItem('mock_session');
 
-            // DEV MODE: Auto-login as admin if no session
+            // DEV MODE: Auto-login as admin if no session -> REMOVED FOR AUTH TESTING
+            // We want to force manual login to test the flow
             if (!sessionStr) {
-                console.log("Dev Mode: Auto-logging in as admin");
-                const adminUser = this.tables['profiles'].find((p: any) => p.email === 'admin@example.com') || INITIAL_PROFILES[1];
-                const newSession = {
-                    access_token: 'mock-token-auto-admin',
-                    user: { ...adminUser, id: adminUser.id, email: adminUser.email }
-                };
-                sessionStr = JSON.stringify(newSession);
-                localStorage.setItem('mock_session', sessionStr);
-
-                // Notify listener to update UI immediately if needed
-                if (this.authListenerCallback) {
-                    this.authListenerCallback('SIGNED_IN', newSession);
-                }
+                return { data: { session: null }, error: null };
             }
 
             return { data: { session: sessionStr ? JSON.parse(sessionStr) : null }, error: null };
@@ -257,39 +246,25 @@ class MockDB {
             return { data: { subscription: { unsubscribe: () => { this.authListenerCallback = null; } } } };
         },
         signInWithPassword: async ({ email, password }: any) => {
-            // Mock login - accept any password for simplicity in dev, or check specific users
-            let user;
-            if (email.includes('admin')) {
-                user = this.tables['profiles'].find((p: any) => p.email === 'admin@example.com');
-            } else {
-                user = this.tables['profiles'].find((p: any) => p.email === 'user@example.com');
-                if (!user) {
-                    // Create temp user if not exists for easier testing
-                    user = {
-                        id: 'user-' + Date.now(),
-                        email,
-                        role: 'user',
-                        balance: 0,
-                        created_at: new Date().toISOString()
-                    };
-                    this.tables['profiles'].push(user);
-                    this.saveToStorage('profiles');
+            // Updated Mock Login Logic
+            const user = this.tables['profiles'].find((p: any) => p.email === email);
 
-                    // Create user role
-                    const userRole = {
-                        id: 'role-' + Date.now(),
-                        user_id: user.id,
-                        role: 'user',
-                        created_at: new Date().toISOString()
-                    };
-                    this.tables['user_roles'].push(userRole);
-                    this.saveToStorage('user_roles');
-                }
+            if (!user) {
+                return { data: { user: null, session: null }, error: { message: 'Invalid login credentials' } };
             }
 
+            // Simple password check simulation
+            // For admin: strict check
+            if (email === 'contact.sayedjohon@gmail.com' && password !== 'Johon123') {
+                return { data: { user: null, session: null }, error: { message: 'Invalid login credentials' } };
+            }
+            // For others: we accept any password for now as we don't store hashes in mock, 
+            // OR we could store a 'password' field in profile for strictly local testing.
+            // Let's assume for non-admin users any password > 6 chars works if user exists.
+
             const session = {
-                access_token: 'mock-token',
-                user: { ...user, id: user.id, email: user.email }
+                access_token: 'mock-token-' + Date.now(),
+                user: { ...user } // Ensure we copy the user object
             };
             localStorage.setItem('mock_session', JSON.stringify(session));
 
@@ -300,18 +275,25 @@ class MockDB {
 
             return { data: { user: session.user, session }, error: null };
         },
-        signUp: async ({ email, password }: any) => {
+        signUp: async ({ email, password, options }: any) => {
+            // Check if user already exists
             const existing = this.tables['profiles'].find((p: any) => p.email === email);
             if (existing) {
                 return { data: { user: null, session: null }, error: { message: 'User already registered' } };
             }
+
+            // Create new User
             const newUser = {
                 id: 'user-' + Date.now(),
                 email,
-                role: 'user',
+                role: 'user', // Default role
                 balance: 0,
-                created_at: new Date().toISOString()
+                is_active: true,
+                created_at: new Date().toISOString(),
+                // Store password if we wanted to be strict, but for now we skip
+                metadata: options?.data || {}
             };
+
             this.tables['profiles'].push(newUser);
             this.saveToStorage('profiles');
 
@@ -326,9 +308,11 @@ class MockDB {
             this.saveToStorage('user_roles');
 
             const session = {
-                access_token: 'mock-token',
+                access_token: 'mock-token-' + Date.now(),
                 user: { ...newUser }
             };
+
+            // Auto sign in after sign up
             localStorage.setItem('mock_session', JSON.stringify(session));
 
             // Notify listener
@@ -386,6 +370,41 @@ class MockDB {
             }
 
             return { data: { user: updatedUser }, error: null };
+        },
+        admin: {
+            createUser: async ({ email, password, email_confirm, user_metadata }: any) => {
+                // Check if user already exists
+                const existing = this.tables['profiles'].find((p: any) => p.email === email);
+                if (existing) {
+                    return { data: { user: null }, error: { message: 'User already exists' } };
+                }
+
+                // Create new User
+                const newUser = {
+                    id: 'user-' + Date.now(),
+                    email,
+                    role: user_metadata?.role || 'user',
+                    balance: 0,
+                    is_active: true,
+                    created_at: new Date().toISOString(),
+                    metadata: user_metadata || {}
+                };
+
+                this.tables['profiles'].push(newUser);
+                this.saveToStorage('profiles');
+
+                // Create user role
+                const userRole = {
+                    id: 'role-' + Date.now(),
+                    user_id: newUser.id,
+                    role: user_metadata?.role || 'user',
+                    created_at: new Date().toISOString()
+                };
+                this.tables['user_roles'].push(userRole);
+                this.saveToStorage('user_roles');
+
+                return { data: { user: newUser }, error: null };
+            }
         }
     };
 }
@@ -414,7 +433,10 @@ class QueryBuilder {
     }
 
     eq(column: string, value: any) {
-        this.filters.push((item) => item[column] === value);
+        this.filters.push((item) => {
+            // console.log(`Filter [eq]: ${item[column]} == ${value} ?`, item[column] == value);
+            return item[column] == value;
+        });
         return this;
     }
 
@@ -516,13 +538,16 @@ class QueryBuilder {
 
         // 2. UPDATE
         if (this._pendingUpdates) {
+            console.log(`[MockDB] Executing UPDATE on ${this.tableName}`, this._pendingUpdates);
             let updatedCount = 0;
             let updatedRows: any[] = [];
+
             const newData = this.data.map(item => {
                 // Check if item matches all filters
                 const match = this.filters.every(f => f(item));
                 if (match) {
                     updatedCount++;
+                    console.log(`[MockDB] Matched item for update:`, item.id);
                     const updatedItem = { ...item, ...this._pendingUpdates, updated_at: new Date().toISOString() };
                     updatedRows.push(updatedItem);
                     return updatedItem;
@@ -531,12 +556,15 @@ class QueryBuilder {
             });
 
             if (updatedCount > 0) {
+                console.log(`[MockDB] Updated ${updatedCount} rows`);
                 this.onUpdate(newData);
                 // Notify for each updated row - strictly we should do this inside the map but this is a mock
                 updatedRows.forEach(row => {
                     // Find old row for diff? Mock simplification: just send new
                     this.db.notifySubscribers(this.tableName, 'UPDATE', null, row);
                 });
+            } else {
+                console.warn(`[MockDB] UPDATE executed but NO rows matched filters on ${this.tableName}`);
             }
 
             // If .select() was called, Supabase returns the updated rows. 

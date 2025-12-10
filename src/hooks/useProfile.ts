@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { mockDB as supabase } from '@/services/mock-db';
 import { useAuth } from '@/contexts/AuthContext';
 
 export interface Profile {
@@ -101,10 +101,12 @@ export function useUpdateUserRole() {
 
       if (roleError) throw roleError;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      queryClient.invalidateQueries({ queryKey: ['userRole'] });
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
+        queryClient.invalidateQueries({ queryKey: ['userRole'] }),
+        queryClient.invalidateQueries({ queryKey: ['profile'] })
+      ]);
     },
   });
 

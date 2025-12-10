@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { mockDB as supabase } from '@/services/mock-db';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,6 +48,7 @@ export default function AdminUsers() {
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [userToPromote, setUserToPromote] = useState<User | null>(null);
     const [fundsAmount, setFundsAmount] = useState('');
+    const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
 
     const queryClient = useQueryClient();
 
@@ -145,6 +146,12 @@ export default function AdminUsers() {
                     <p className="text-muted-foreground mt-1">
                         Manage users and balances
                     </p>
+                </div>
+                <div className="flex gap-4 items-center">
+                    <Button onClick={() => setIsCreateUserOpen(true)}>
+                        <Users className="w-4 h-4 mr-2" />
+                        Add User
+                    </Button>
                 </div>
                 <div className="relative w-full sm:w-72">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -347,6 +354,90 @@ export default function AdminUsers() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </div >
+            <CreateUserDialog
+                open={isCreateUserOpen}
+                onOpenChange={setIsCreateUserOpen}
+                onSuccess={() => queryClient.invalidateQueries({ queryKey: ['admin-users'] })}
+            />
+        </div>
+    );
+}
+
+function CreateUserDialog({ open, onOpenChange, onSuccess }: { open: boolean, onOpenChange: (open: boolean) => void, onSuccess: () => void }) {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [role, setRole] = useState<'user' | 'admin'>('user');
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const { error } = await supabase.auth.admin.createUser({
+                email,
+                password,
+                email_confirm: true,
+                user_metadata: { role }
+            });
+
+            if (error) throw error;
+
+            toast.success('User created successfully');
+            onOpenChange(false);
+            setEmail('');
+            setPassword('');
+            setRole('user');
+            onSuccess();
+        } catch (error: any) {
+            toast.error(error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="glass-panel-strong max-w-sm">
+                <DialogHeader>
+                    <DialogTitle>Create New User</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Email</label>
+                        <Input
+                            type="email"
+                            required
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            placeholder="user@example.com"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Password</label>
+                        <Input
+                            type="password"
+                            required
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            placeholder="Min. 6 characters"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Role</label>
+                        <select
+                            className="w-full flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            value={role}
+                            onChange={(e) => setRole(e.target.value as 'user' | 'admin')}
+                        >
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <Button type="submit" className="w-full" disabled={loading}>
+                        {loading ? 'Creating...' : 'Create User'}
+                    </Button>
+                </form>
+            </DialogContent>
+        </Dialog>
     );
 }

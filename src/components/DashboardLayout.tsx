@@ -131,16 +131,6 @@ export default function DashboardLayout({ children }: SidebarProps) {
             } else {
               // We are in /dashboard (User Panel)
               itemsToShow = userItems;
-
-              // If user is actually an admin, give them a link to switch to Admin Panel
-              if (isAdmin) {
-                itemsToShow.push({
-                  icon: Shield,
-                  label: 'Admin Panel',
-                  href: '/admin',
-                  separator: true
-                });
-              }
             }
 
             return itemsToShow.map((item) => {
