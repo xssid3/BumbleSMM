@@ -12,10 +12,11 @@ import {
   Wallet,
   Settings,
   Users,
-  Package,
+  LayoutGrid,
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Shield,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -23,16 +24,25 @@ interface SidebarProps {
   children: React.ReactNode;
 }
 
-const userNavItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-  { icon: ShoppingCart, label: 'New Order', path: '/dashboard/new-order' },
-  { icon: History, label: 'Order History', path: '/dashboard/orders' },
-  { icon: Wallet, label: 'Add Funds', path: '/dashboard/add-funds' },
-];
+interface NavItem {
+  icon: React.ElementType;
+  label: string;
+  path?: string; // Legacy support if needed, preferring href
+  href?: string;
+  separator?: boolean;
+}
 
-const adminNavItems = [
-  { icon: Package, label: 'Services', path: '/admin/services' },
-  { icon: Users, label: 'Users', path: '/admin/users' },
+const userNavItems: NavItem[] = [
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
+  { icon: ShoppingCart, label: 'New Order', href: '/dashboard/new-order' },
+  { icon: History, label: 'Order History', href: '/dashboard/orders' },
+  { icon: Wallet, label: 'Add Funds', href: '/dashboard/add-funds' },
+  { icon: Settings, label: 'Settings', href: '/dashboard/settings' },
+
+  // Admin Links
+  { icon: Users, label: 'Admin Users', href: '/admin/users', separator: true },
+  { icon: LayoutGrid, label: 'Admin Services', href: '/admin/services' },
+  { icon: ShoppingCart, label: 'Admin Orders', href: '/admin/orders' },
 ];
 
 export default function DashboardLayout({ children }: SidebarProps) {
@@ -80,7 +90,8 @@ export default function DashboardLayout({ children }: SidebarProps) {
         </div>
 
         {/* Balance */}
-        {!collapsed && (
+        {/* Balance - Only show for non-admin paths */}
+        {!collapsed && !location.pathname.startsWith('/admin') && (
           <div className="p-4 border-b border-border">
             <div className="bg-secondary/50 rounded-lg p-3">
               <p className="text-xs text-muted-foreground mb-1">Balance</p>
@@ -93,48 +104,77 @@ export default function DashboardLayout({ children }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {userNavItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
-                location.pathname === item.path
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-              )}
-            >
-              <item.icon className="w-5 h-5 shrink-0" />
-              {!collapsed && <span className="font-medium">{item.label}</span>}
-            </Link>
-          ))}
+          {(() => {
+            const isAdminPath = location.pathname.startsWith('/admin');
 
-          {isAdmin && (
-            <>
-              <div className="pt-4 pb-2">
-                {!collapsed && (
-                  <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Admin
-                  </p>
-                )}
-              </div>
-              {adminNavItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
-                    location.pathname === item.path
-                      ? 'bg-accent text-accent-foreground'
-                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+            // Define item sets
+            const userItems: NavItem[] = [
+              { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
+              { icon: History, label: 'Order History', href: '/dashboard/orders' },
+              { icon: Wallet, label: 'Add Funds', href: '/dashboard/add-funds' },
+              { icon: Settings, label: 'Settings', href: '/dashboard/settings' },
+            ];
+
+            const adminItems: NavItem[] = [
+              { icon: LayoutGrid, label: 'Services', href: '/admin' },
+              { icon: Users, label: 'Users', href: '/admin/users' },
+              { icon: ShoppingCart, label: 'Orders', href: '/admin/orders' },
+              { icon: LayoutDashboard, label: 'Back to User Panel', href: '/dashboard', separator: true },
+            ];
+
+            // STRICT Separation Logic
+            let itemsToShow: NavItem[] = [];
+
+            if (isAdminPath) {
+              // We are in /admin, show ONLY admin items
+              itemsToShow = adminItems;
+            } else {
+              // We are in /dashboard (User Panel)
+              itemsToShow = userItems;
+
+              // If user is actually an admin, give them a link to switch to Admin Panel
+              if (isAdmin) {
+                itemsToShow.push({
+                  icon: Shield,
+                  label: 'Admin Panel',
+                  href: '/admin',
+                  separator: true
+                });
+              }
+            }
+
+            return itemsToShow.map((item) => {
+              const targetPath = item.href || '#';
+              const isActive = location.pathname === targetPath || (targetPath === '/admin' && location.pathname === '/admin/services');
+
+              // Use 'Shield' icon for Admin Panel explicitly if needed, but we define it in the array
+              const Icon = item.icon || Zap;
+
+              return (
+                <div key={targetPath}>
+                  {item.separator && !collapsed && (
+                    <div className="h-px bg-border/50 my-2 mx-4" />
                   )}
-                >
-                  <item.icon className="w-5 h-5 shrink-0" />
-                  {!collapsed && <span className="font-medium">{item.label}</span>}
-                </Link>
-              ))}
-            </>
-          )}
+                  {item.separator && collapsed && (
+                    <div className="h-px bg-border/50 my-2 mx-auto w-8" />
+                  )}
+                  <Link
+                    to={targetPath}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
+                      isActive
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                    )}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <Icon className="w-5 h-5 shrink-0" />
+                    {!collapsed && <span className="font-medium">{item.label}</span>}
+                  </Link>
+                </div>
+              );
+            });
+          })()}
         </nav>
 
         {/* Footer */}

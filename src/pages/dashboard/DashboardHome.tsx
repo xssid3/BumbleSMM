@@ -1,189 +1,402 @@
+import { useState, useMemo, useEffect } from 'react';
+import { useCategories, useServices, useService } from '@/hooks/useServices';
+import { usePlaceOrder } from '@/hooks/useOrders';
 import { useProfile } from '@/hooks/useProfile';
-import { useOrders } from '@/hooks/useOrders';
-import { useTransactions } from '@/hooks/useTransactions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
-import {
-  ShoppingCart,
-  Wallet,
-  TrendingUp,
-  Clock,
-  CheckCircle,
-  ArrowUpRight,
-} from 'lucide-react';
-import { format } from 'date-fns';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Slider } from '@/components/ui/slider';
+import { Search, ShoppingCart, Zap, Tag, Info, AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { PLATFORM_ICONS, PlatformType } from '@/components/icons/SocialIcons';
+
+import { useSearchParams } from 'react-router-dom';
 
 export default function DashboardHome() {
+  const [link, setLink] = useState('');
+  const [quantity, setQuantity] = useState(1000);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [extraInputs, setExtraInputs] = useState<Record<string, string>>({});
+
+  const { data: allServices = [] } = useServices();
+  const { data: categories = [] } = useCategories();
+
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
+
+  const [searchParams] = useSearchParams();
+
+  // Handle pre-selected service from URL
+  useEffect(() => {
+    const serviceIdParam = searchParams.get('serviceId');
+    if (serviceIdParam && allServices.length > 0) {
+      const idAsNumber = parseInt(serviceIdParam);
+      const serviceExists = allServices.find(s => s.id === idAsNumber);
+
+      if (serviceExists) {
+        setSelectedServiceId(idAsNumber);
+        if (serviceExists.category_id) {
+          setSelectedCategory(serviceExists.category_id);
+        }
+        // Also scroll to form
+        setTimeout(() => {
+          document.getElementById('order-form')?.scrollIntoView({ behavior: 'smooth' });
+        }, 500);
+      }
+    }
+  }, [searchParams, allServices]);
+
+  // Filter services based on selected category & search query
+  const filteredServices = useMemo(() => {
+    let result = allServices;
+
+    if (selectedCategory) {
+      result = result.filter(s => s.category_id === selectedCategory);
+    }
+
+    if (searchQuery) {
+      result = result.filter(
+        (s) =>
+          s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          s.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    return result;
+  }, [allServices, selectedCategory, searchQuery]);
+
+  const { data: selectedService } = useService(selectedServiceId || 0);
   const { data: profile } = useProfile();
-  const { data: orders = [] } = useOrders();
-  const { data: transactions = [] } = useTransactions();
+  const placeOrder = usePlaceOrder();
 
-  const pendingOrders = orders.filter((o) => o.status === 'pending' || o.status === 'processing').length;
-  const completedOrders = orders.filter((o) => o.status === 'completed').length;
-  const totalSpent = orders.reduce((sum, o) => sum + Number(o.total_cost), 0);
+  const calculateCost = () => {
+    if (!selectedService) return 0;
+    if (selectedService.type === 'smm' && selectedService.price_per_1000) {
+      return (Number(selectedService.price_per_1000) / 1000) * quantity;
+    }
+    return Number(selectedService.fixed_price || 0);
+  };
 
-  const recentOrders = orders.slice(0, 5);
-  const recentTransactions = transactions.slice(0, 5);
+  const cost = calculateCost();
+  const balance = Number(profile?.balance || 0);
+  const hasEnoughBalance = balance >= cost;
 
-  const stats = [
-    {
-      title: 'Balance',
-      value: `$${Number(profile?.balance || 0).toFixed(2)}`,
-      icon: Wallet,
-      color: 'text-primary',
-      bg: 'bg-primary/10',
-    },
-    {
-      title: 'Pending Orders',
-      value: pendingOrders,
-      icon: Clock,
-      color: 'text-warning',
-      bg: 'bg-warning/10',
-    },
-    {
-      title: 'Completed',
-      value: completedOrders,
-      icon: CheckCircle,
-      color: 'text-success',
-      bg: 'bg-success/10',
-    },
-    {
-      title: 'Total Spent',
-      value: `$${totalSpent.toFixed(2)}`,
-      icon: TrendingUp,
-      color: 'text-accent',
-      bg: 'bg-accent/10',
-    },
-  ];
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedServiceId || !selectedService) return;
+
+    const inputData: Record<string, unknown> = { ...extraInputs };
+
+    await placeOrder.mutateAsync({
+      serviceId: selectedServiceId,
+      link: link || undefined,
+      quantity: selectedService.type === 'smm' ? quantity : 1,
+      inputData: Object.keys(inputData).length > 0 ? inputData : undefined,
+    });
+
+    // Reset form
+    setLink('');
+    setQuantity(1000);
+    setExtraInputs({});
+    setSelectedServiceId(null);
+  };
+
+  const inputSchema = selectedService?.input_schema || [];
 
   return (
-    <div className="p-6 lg:p-8 space-y-8 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Welcome back! Here's your overview.
-          </p>
-        </div>
-        <Link to="/dashboard/new-order">
-          <Button variant="glow" size="lg">
-            <ShoppingCart className="w-4 h-4" />
-            New Order
-          </Button>
-        </Link>
+    <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
+      <div>
+        <h1 className="text-3xl font-bold">New Order</h1>
+        <p className="text-muted-foreground mt-1">
+          Select a service and place your order
+        </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <Card key={stat.title} className="glass-panel border-border/50">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{stat.title}</p>
-                  <p className="text-2xl font-bold mt-1">{stat.value}</p>
-                </div>
-                <div className={`w-12 h-12 rounded-xl ${stat.bg} flex items-center justify-center`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Panel - Service Selection */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Categories */}
+          <Card className="glass-panel">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Tag className="w-5 h-5 text-primary" />
+                Categories
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className={cn(
+                    'px-4 py-2 rounded-lg font-medium transition-all duration-200',
+                    selectedCategory === null
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                  )}
+                >
+                  All
+                </button>
+                {categories.map((cat) => {
+                  const Icon = PLATFORM_ICONS[cat.slug as PlatformType] || Tag;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={cn(
+                        'px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2',
+                        selectedCategory === cat.id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                      )}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {cat.name}
+                    </button>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Orders */}
-        <Card className="glass-panel border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Recent Orders</CardTitle>
-            <Link to="/dashboard/orders" className="text-sm text-primary hover:underline">
-              View all
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {recentOrders.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <ShoppingCart className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                <p>No orders yet</p>
-                <Link to="/dashboard/new-order" className="text-primary hover:underline text-sm">
-                  Place your first order
-                </Link>
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <Input
+              placeholder="Search services..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 glass-panel border-0"
+            />
+          </div>
+
+          {/* Services List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredServices.length === 0 ? (
+              <div className="col-span-2 text-center py-12 text-muted-foreground">
+                <ShoppingCart className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No services found</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {recentOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
-                        {order.service?.name || 'Unknown Service'}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        #{order.id} • {order.quantity || 1} qty
-                      </p>
+              filteredServices.map((service) => (
+                <Card
+                  key={service.id}
+                  onClick={() => setSelectedServiceId(service.id)}
+                  className={cn(
+                    'cursor-pointer transition-all duration-200',
+                    selectedServiceId === service.id
+                      ? 'border-primary ring-2 ring-primary/20 bg-secondary/80'
+                      : 'glass-panel border-0'
+                  )}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-secondary shrink-0">
+                        {(() => {
+                          const catSlug = service.category?.slug || '';
+                          const Icon = PLATFORM_ICONS[catSlug as PlatformType] || ShoppingCart;
+                          return <Icon className={cn("w-5 h-5",
+                            catSlug === 'facebook' ? 'text-blue-600' :
+                              catSlug === 'instagram' ? 'text-pink-500' :
+                                catSlug === 'youtube' ? 'text-red-500' :
+                                  catSlug === 'tiktok' ? 'text-cyan-500' : 'text-primary'
+                          )} />;
+                        })()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold truncate">{service.name}</h3>
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                          {service.description || 'No description'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="outline" className="text-xs">
+                            {service.type === 'smm' ? 'SMM' : 'Digital'}
+                          </Badge>
+                          {service.type === 'smm' && (
+                            <span className="text-xs text-muted-foreground">
+                              {service.min_quantity} - {service.max_quantity}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-lg font-bold text-primary">
+                          {service.type === 'smm'
+                            ? `$${Number(service.price_per_1000).toFixed(2)}`
+                            : `$${Number(service.fixed_price).toFixed(2)}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {service.type === 'smm' ? '/1000' : 'fixed'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right ml-4">
-                      <p className="font-medium">${Number(order.total_cost).toFixed(2)}</p>
-                      <span className={`status-badge status-${order.status}`}>
-                        {order.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  </CardContent>
+                </Card>
+              ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Recent Transactions */}
-        <Card className="glass-panel border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Recent Transactions</CardTitle>
-            <Link to="/dashboard/add-funds" className="text-sm text-primary hover:underline">
-              Add funds
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {recentTransactions.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Wallet className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                <p>No transactions yet</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentTransactions.map((tx) => (
-                  <div
-                    key={tx.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-secondary/30"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium capitalize">{tx.type.replace('_', ' ')}</p>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {tx.description || 'No description'}
-                      </p>
-                    </div>
-                    <div className="text-right ml-4">
-                      <p
-                        className={`font-bold ${
-                          Number(tx.amount) > 0 ? 'text-success' : 'text-destructive'
-                        }`}
-                      >
-                        {Number(tx.amount) > 0 ? '+' : ''}${Number(tx.amount).toFixed(2)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(tx.created_at), 'MMM d, HH:mm')}
-                      </p>
-                    </div>
+        {/* Right Panel - Order Form */}
+        <div className="lg:col-span-1">
+          {/* Order Form */}
+          <div className="md:col-span-2">
+            <Card className="glass-panel sticky top-24" id="order-form">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-primary" />
+                  Order Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!selectedService ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Info className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                    <p>Select a service to continue</p>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                ) : (
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Selected Service</p>
+                      <p className="font-semibold">{selectedService.name}</p>
+                    </div>
+
+                    {/* Dynamic Input Fields based on input_schema */}
+                    {inputSchema.map((field) => {
+                      if (field === 'link') {
+                        return (
+                          <div key="link">
+                            <label className="text-sm font-medium mb-2 block">
+                              Link / URL
+                            </label>
+                            <Input
+                              placeholder="https://..."
+                              value={link}
+                              onChange={(e) => setLink(e.target.value)}
+                              required
+                            />
+                          </div>
+                        );
+                      }
+
+                      if (field === 'quantity') {
+                        if (selectedService.type !== 'smm') return null;
+                        return (
+                          <div key="quantity">
+                            <label className="text-sm font-medium mb-2 block">
+                              Quantity: {quantity.toLocaleString()}
+                            </label>
+                            <Slider
+                              value={[quantity]}
+                              onValueChange={([val]) => setQuantity(val)}
+                              min={selectedService.min_quantity || 100}
+                              max={selectedService.max_quantity || 100000}
+                              step={100}
+                              className="my-4"
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Min: {selectedService.min_quantity}</span>
+                              <span>Max: {selectedService.max_quantity}</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (field === 'comments') {
+                        return (
+                          <div key="comments">
+                            <label className="text-sm font-medium mb-2 block">
+                              Comments (one per line)
+                            </label>
+                            <Textarea
+                              placeholder="Enter comments..."
+                              value={extraInputs.comments || ''}
+                              onChange={(e) =>
+                                setExtraInputs({ ...extraInputs, comments: e.target.value })
+                              }
+                              rows={4}
+                            />
+                          </div>
+                        );
+                      }
+
+                      if (field === 'username_only') {
+                        return (
+                          <div key="username_only">
+                            <label className="text-sm font-medium mb-2 block">
+                              Username
+                            </label>
+                            <Input
+                              placeholder="@username"
+                              value={extraInputs.username || ''}
+                              onChange={(e) =>
+                                setExtraInputs({ ...extraInputs, username: e.target.value })
+                              }
+                              required
+                            />
+                          </div>
+                        );
+                      }
+
+                      // Generic Custom Field
+                      return (
+                        <div key={field}>
+                          <label className="text-sm font-medium mb-2 block capitalize">
+                            {field.replace(/_/g, ' ')}
+                          </label>
+                          <Textarea
+                            placeholder={`Enter ${field.replace(/_/g, ' ')}...`}
+                            value={extraInputs[field] || ''}
+                            onChange={(e) =>
+                              setExtraInputs({ ...extraInputs, [field]: e.target.value })
+                            }
+                            rows={4}
+                            required
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Explain everything clearly (supports multiple lines).
+                          </p>
+                        </div>
+                      );
+                    })}
+
+                    {/* Cost Summary */}
+                    <div className="pt-4 border-t border-border space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Your Balance</span>
+                        <span className={hasEnoughBalance ? 'text-success' : 'text-destructive'}>
+                          ${balance.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-lg font-bold">
+                        <span>Total Cost</span>
+                        <span className="text-primary">${cost.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {!hasEnoughBalance && (
+                      <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>Insufficient balance. Please add funds.</span>
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      variant="glow"
+                      size="lg"
+                      disabled={!hasEnoughBalance || placeOrder.isPending}
+                    >
+                      {placeOrder.isPending ? 'Processing...' : 'Place Order'}
+                      <ShoppingCart className="w-4 h-4" />
+                    </Button>
+                  </form>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

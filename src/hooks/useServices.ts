@@ -120,3 +120,66 @@ export function useCreateService() {
     },
   });
 }
+
+export function useCreateCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ name, slug: customSlug, icon }: { name: string; slug?: string; icon?: string }) => {
+      const slug = customSlug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const { data: category, error } = await supabase
+        .from('categories')
+        .insert({
+          name,
+          slug,
+          icon, // Use provided icon
+          sort_order: 99,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return category;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
+}
+export function useDeleteService() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-services'] });
+    },
+  });
+}
+
+export function useDeleteCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
+}

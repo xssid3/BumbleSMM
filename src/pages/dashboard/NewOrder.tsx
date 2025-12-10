@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Search, ShoppingCart, Zap, Tag, Info, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PLATFORM_ICONS, PlatformType } from '@/components/icons/SocialIcons';
 
 export default function NewOrder() {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -108,21 +109,24 @@ export default function NewOrder() {
                 >
                   All
                 </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={cn(
-                      'px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2',
-                      selectedCategory === cat.id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                    )}
-                  >
-                    <span>{cat.icon}</span>
-                    {cat.name}
-                  </button>
-                ))}
+                {categories.map((cat) => {
+                  const Icon = PLATFORM_ICONS[cat.slug as PlatformType] || Tag;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={cn(
+                        'px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2',
+                        selectedCategory === cat.id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                      )}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {cat.name}
+                    </button>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -159,6 +163,18 @@ export default function NewOrder() {
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-secondary shrink-0">
+                        {(() => {
+                          const catSlug = service.category?.slug || '';
+                          const Icon = PLATFORM_ICONS[catSlug as PlatformType] || ShoppingCart;
+                          return <Icon className={cn("w-5 h-5",
+                            catSlug === 'facebook' ? 'text-blue-600' :
+                              catSlug === 'instagram' ? 'text-pink-500' :
+                                catSlug === 'youtube' ? 'text-red-500' :
+                                  catSlug === 'tiktok' ? 'text-cyan-500' : 'text-primary'
+                          )} />;
+                        })()}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold truncate">{service.name}</h3>
                         <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
@@ -217,71 +233,104 @@ export default function NewOrder() {
                     </div>
 
                     {/* Dynamic Input Fields based on input_schema */}
-                    {inputSchema.includes('link') && (
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Link / URL
-                        </label>
-                        <Input
-                          placeholder="https://..."
-                          value={link}
-                          onChange={(e) => setLink(e.target.value)}
-                          required
-                        />
-                      </div>
-                    )}
+                    {/* Dynamic Input Fields based on input_schema */}
+                    {inputSchema.map((field) => {
+                      if (field === 'link') {
+                        return (
+                          <div key="link">
+                            <label className="text-sm font-medium mb-2 block">
+                              Link / URL
+                            </label>
+                            <Input
+                              placeholder="https://..."
+                              value={link}
+                              onChange={(e) => setLink(e.target.value)}
+                              required
+                            />
+                          </div>
+                        );
+                      }
 
-                    {inputSchema.includes('quantity') && selectedService.type === 'smm' && (
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Quantity: {quantity.toLocaleString()}
-                        </label>
-                        <Slider
-                          value={[quantity]}
-                          onValueChange={([val]) => setQuantity(val)}
-                          min={selectedService.min_quantity || 100}
-                          max={selectedService.max_quantity || 100000}
-                          step={100}
-                          className="my-4"
-                        />
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>Min: {selectedService.min_quantity}</span>
-                          <span>Max: {selectedService.max_quantity}</span>
+                      if (field === 'quantity') {
+                        if (selectedService.type !== 'smm') return null;
+                        return (
+                          <div key="quantity">
+                            <label className="text-sm font-medium mb-2 block">
+                              Quantity: {quantity.toLocaleString()}
+                            </label>
+                            <Slider
+                              value={[quantity]}
+                              onValueChange={([val]) => setQuantity(val)}
+                              min={selectedService.min_quantity || 100}
+                              max={selectedService.max_quantity || 100000}
+                              step={100}
+                              className="my-4"
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Min: {selectedService.min_quantity}</span>
+                              <span>Max: {selectedService.max_quantity}</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (field === 'comments') {
+                        return (
+                          <div key="comments">
+                            <label className="text-sm font-medium mb-2 block">
+                              Comments (one per line)
+                            </label>
+                            <Textarea
+                              placeholder="Enter comments..."
+                              value={extraInputs.comments || ''}
+                              onChange={(e) =>
+                                setExtraInputs({ ...extraInputs, comments: e.target.value })
+                              }
+                              rows={4}
+                            />
+                          </div>
+                        );
+                      }
+
+                      if (field === 'username_only') {
+                        return (
+                          <div key="username_only">
+                            <label className="text-sm font-medium mb-2 block">
+                              Username
+                            </label>
+                            <Input
+                              placeholder="@username"
+                              value={extraInputs.username || ''}
+                              onChange={(e) =>
+                                setExtraInputs({ ...extraInputs, username: e.target.value })
+                              }
+                              required
+                            />
+                          </div>
+                        );
+                      }
+
+                      // Generic Custom Field
+                      return (
+                        <div key={field}>
+                          <label className="text-sm font-medium mb-2 block capitalize">
+                            {field.replace(/_/g, ' ')}
+                          </label>
+                          <Textarea
+                            placeholder={`Enter ${field.replace(/_/g, ' ')}...`}
+                            value={extraInputs[field] || ''}
+                            onChange={(e) =>
+                              setExtraInputs({ ...extraInputs, [field]: e.target.value })
+                            }
+                            rows={4}
+                            required
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Explain everything clearly (supports multiple lines).
+                          </p>
                         </div>
-                      </div>
-                    )}
-
-                    {inputSchema.includes('comments') && (
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Comments (one per line)
-                        </label>
-                        <Textarea
-                          placeholder="Enter comments..."
-                          value={extraInputs.comments || ''}
-                          onChange={(e) =>
-                            setExtraInputs({ ...extraInputs, comments: e.target.value })
-                          }
-                          rows={4}
-                        />
-                      </div>
-                    )}
-
-                    {inputSchema.includes('username_only') && (
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Username
-                        </label>
-                        <Input
-                          placeholder="@username"
-                          value={extraInputs.username || ''}
-                          onChange={(e) =>
-                            setExtraInputs({ ...extraInputs, username: e.target.value })
-                          }
-                          required
-                        />
-                      </div>
-                    )}
+                      );
+                    })}
 
                     {/* Cost Summary */}
                     <div className="pt-4 border-t border-border space-y-2">

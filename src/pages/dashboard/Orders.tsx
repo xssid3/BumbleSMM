@@ -3,6 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Table,
   TableBody,
   TableCell,
@@ -10,14 +16,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, History, ExternalLink } from 'lucide-react';
+import { Search, History, ExternalLink, Eye, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 export default function Orders() {
   const { data: orders = [], isLoading } = useOrders();
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
   const filteredOrders = orders.filter(
     (order) =>
@@ -121,6 +129,11 @@ export default function Orders() {
                       <TableCell className="text-muted-foreground">
                         {format(new Date(order.created_at), 'MMM d, yyyy HH:mm')}
                       </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(order)}>
+                          <Eye className="w-4 h-4 mr-1" /> View
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -129,6 +142,75 @@ export default function Orders() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+        <DialogContent className="glass-panel-strong max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Order #{selectedOrder?.id}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground block">Service</span>
+                <span className="font-medium">{selectedOrder?.service?.name}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">Status</span>
+                {selectedOrder && getStatusBadge(selectedOrder.status)}
+              </div>
+              <div>
+                <span className="text-muted-foreground block">Link</span>
+                <a href={selectedOrder?.link} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate block">
+                  {selectedOrder?.link}
+                </a>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">Quantity</span>
+                <span>{selectedOrder?.quantity}</span>
+              </div>
+            </div>
+
+            {selectedOrder?.status === 'completed' && selectedOrder.fulfillment_data && (
+              <div className="mt-6 border-t pt-4">
+                <h3 className="font-semibold mb-3">Order Completion Details</h3>
+
+                {selectedOrder.fulfillment_data.text && (
+                  <div className="mb-4">
+                    <span className="text-sm text-muted-foreground block mb-1">Message</span>
+                    <div
+                      className="p-3 border rounded-md bg-secondary/20 prose prose-invert max-w-none text-sm"
+                      dangerouslySetInnerHTML={{ __html: selectedOrder.fulfillment_data.text }}
+                    />
+                  </div>
+                )}
+
+                {selectedOrder.fulfillment_data.files && selectedOrder.fulfillment_data.files.length > 0 && (
+                  <div>
+                    <span className="text-sm text-muted-foreground block mb-1">Attached Files</span>
+                    <div className="space-y-2">
+                      {selectedOrder.fulfillment_data.files.map((file: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2 p-2 border rounded-md bg-secondary/10">
+                          <FileText className="w-4 h-4 text-primary" />
+                          <a href={file.url} target="_blank" rel="noreferrer" className="text-sm hover:underline hover:text-primary">
+                            {file.name}
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedOrder?.status === 'completed' && !selectedOrder.fulfillment_data && (
+              <div className="mt-6 border-t pt-4 text-center text-muted-foreground italic">
+                Order marked as completed.
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

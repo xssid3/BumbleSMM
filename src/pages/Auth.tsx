@@ -49,7 +49,9 @@ export default function AuthPage() {
           }
         } else {
           toast.success('Welcome back!');
-          navigate('/dashboard');
+          const params = new URLSearchParams(window.location.search);
+          const returnUrl = params.get('returnUrl');
+          navigate(returnUrl || '/dashboard');
         }
       } else {
         const { error } = await signUp(email, password);
@@ -61,7 +63,9 @@ export default function AuthPage() {
           }
         } else {
           toast.success('Account created successfully!');
-          navigate('/dashboard');
+          const params = new URLSearchParams(window.location.search);
+          const returnUrl = params.get('returnUrl');
+          navigate(returnUrl || '/dashboard');
         }
       }
     } finally {
