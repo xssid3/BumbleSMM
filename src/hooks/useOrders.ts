@@ -86,7 +86,7 @@ export function usePlaceOrder() {
         if (!quantity || !service.price_per_1000) {
           throw new Error('Quantity is required for SMM services');
         }
-        totalCost = (Number(service.price_per_1000) / 1000) * quantity;
+        totalCost = Number(service.price_per_1000) * quantity;
       } else {
         if (!service.fixed_price) {
           throw new Error('Fixed price not set for this product');

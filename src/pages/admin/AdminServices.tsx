@@ -96,7 +96,7 @@ export default function AdminServices() {
     category_id: '',
     price_per_1000: '',
     fixed_price: '',
-    min_quantity: '100',
+    min_quantity: '1',
     max_quantity: '100000',
     description: '',
     input_schema: '["link", "quantity"]',
@@ -183,7 +183,7 @@ export default function AdminServices() {
       category_id: '',
       price_per_1000: '',
       fixed_price: '',
-      min_quantity: '100',
+      min_quantity: '1',
       max_quantity: '100000',
       description: '',
       input_schema: '["link", "quantity"]',
@@ -246,7 +246,7 @@ export default function AdminServices() {
       category_id: service.category_id?.toString() || '',
       price_per_1000: service.price_per_1000?.toString() || '',
       fixed_price: service.fixed_price?.toString() || '',
-      min_quantity: service.min_quantity?.toString() || '100',
+      min_quantity: service.min_quantity?.toString() || '1',
       max_quantity: service.max_quantity?.toString() || '100000',
       description: service.description || '',
       input_schema: JSON.stringify(service.input_schema || ['link', 'quantity']),
@@ -381,7 +381,7 @@ export default function AdminServices() {
                 {formData.type === 'smm' ? (
                   <>
                     <div>
-                      <label className="text-sm font-medium mb-2 block">Price per 1000</label>
+                      <label className="text-sm font-medium mb-2 block">Price per Item</label>
                       <div className="relative">
                         <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
@@ -710,7 +710,7 @@ export default function AdminServices() {
                       </TableCell>
                       <TableCell className="font-mono">
                         {service.type === 'smm'
-                          ? `$${Number(service.price_per_1000).toFixed(2)}/1k`
+                          ? `$${Number(service.price_per_1000).toFixed(2)}`
                           : `$${Number(service.fixed_price).toFixed(2)}`}
                       </TableCell>
                       <TableCell>

@@ -16,7 +16,7 @@ import { useSearchParams } from 'react-router-dom';
 
 export default function DashboardHome() {
   const [link, setLink] = useState('');
-  const [quantity, setQuantity] = useState(1000);
+  const [quantity, setQuantity] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [extraInputs, setExtraInputs] = useState<Record<string, string>>({});
 
@@ -73,7 +73,7 @@ export default function DashboardHome() {
   const calculateCost = () => {
     if (!selectedService) return 0;
     if (selectedService.type === 'smm' && selectedService.price_per_1000) {
-      return (Number(selectedService.price_per_1000) / 1000) * quantity;
+      return Number(selectedService.price_per_1000) * quantity;
     }
     return Number(selectedService.fixed_price || 0);
   };
@@ -97,7 +97,7 @@ export default function DashboardHome() {
 
     // Reset form
     setLink('');
-    setQuantity(1000);
+    setQuantity(1);
     setExtraInputs({});
     setSelectedServiceId(null);
   };
@@ -225,8 +225,8 @@ export default function DashboardHome() {
                             ? `$${Number(service.price_per_1000).toFixed(2)}`
                             : `$${Number(service.fixed_price).toFixed(2)}`}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {service.type === 'smm' ? '/1000' : 'fixed'}
+                        <p className="text-xs text-muted-foreground mr-4">
+                          {service.type === 'smm' ? '/item' : 'fixed'}
                         </p>
                       </div>
                     </div>
@@ -289,9 +289,9 @@ export default function DashboardHome() {
                             <Slider
                               value={[quantity]}
                               onValueChange={([val]) => setQuantity(val)}
-                              min={selectedService.min_quantity || 100}
+                              min={selectedService.min_quantity || 1}
                               max={selectedService.max_quantity || 100000}
-                              step={100}
+                              step={1}
                               className="my-4"
                             />
                             <div className="flex justify-between text-xs text-muted-foreground">
